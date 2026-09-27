@@ -7,12 +7,19 @@
 - POST /api/cookie   粘贴并校验 cookie，按 uid 保存到 config/cookies.json
 """
 import json
+import logging
 import os
+import socket
+import threading
 import time
+import webbrowser
 
 from flask import Flask, jsonify, request
 
 from requester import Request
+
+# 关掉 werkzeug 自带的开发服务器 WARNING 和逐条英文请求日志，改用下面的简洁日志
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_PATH = os.path.join(BASE_DIR, 'cache', 'music.json')
@@ -207,5 +214,68 @@ def _parse_cookie(text: str):
     return d or None
 
 
+@app.route('/api/delete', methods=['POST'])
+def api_delete():
+    """按 uid 删除本地缓存的歌单（cookie 保留，可再次粘贴/更新恢复）"""
+    uid = str((request.get_json(silent=True) or {}).get('uid', ''))
+    if not uid:
+        return jsonify({'code': -1, 'msg': '缺少 uid'}), 400
+    before = len(_cache)
+    _cache[:] = [u for u in _cache if u.get('uid') != uid]
+    if len(_cache) == before:
+        return jsonify({'code': 1, 'msg': '歌单不存在'}), 404
+    _save_cache()
+    return jsonify({'code': 0, 'uid': uid})
+
+
+@app.after_request
+def _access_log(resp):
+    """简洁请求日志：[时:分:秒] METHOD /path -> 状态码"""
+    print(f'[{time.strftime("%H:%M:%S")}] {request.method} {request.path} -> {resp.status_code}',
+          flush=True)
+    return resp
+
+
+def _lan_ip() -> str:
+    """获取本机局域网 IP"""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('8.8.8.8', 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return '127.0.0.1'
+
+
+def _open_browser_when_ready(port: int):
+    """后台等待端口就绪后用默认浏览器打开，不弹额外窗口"""
+    deadline = time.time() + 15
+    while time.time() < deadline:
+        try:
+            with socket.create_connection(('127.0.0.1', port), timeout=0.5):
+                break
+        except OSError:
+            time.sleep(0.3)
+    else:
+        return
+    webbrowser.open(f'http://127.0.0.1:{port}')
+
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=9002)
+    port = 9002
+    print()
+    print('  DyMusic 抖音收藏音乐')
+    print('  ' + '-' * 44)
+    print(f'  本机访问 : http://127.0.0.1:{port}')
+    print(f'  局域网   : http://{_lan_ip()}:{port}')
+    print('  停止服务 : 直接关闭窗口，或按 Ctrl+C')
+    print('  ' + '-' * 44)
+    print()
+    try:
+        import flask.cli
+        flask.cli.show_server_banner = lambda *a, **k: None  # 去掉 "Serving Flask app" 英文横幅
+        threading.Thread(target=_open_browser_when_ready, args=(port,), daemon=True).start()
+        app.run(host='0.0.0.0', port=port)
+    except KeyboardInterrupt:
+        print('\n  服务已停止，再见')

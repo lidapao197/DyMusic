@@ -29,11 +29,13 @@
         <!-- 歌曲列表 -->
         <div class="song-panel">
           <div class="song-panel-head" id="songPanelHead">
-            <h3>🎵 选择歌单查看歌曲</h3>
+            <div class="head-title">
+              <h3>🎵 选择歌单查看歌曲</h3>
+              <button class="btn-action" id="playAllBtn" title="全部播放">▶ 全部播放</button>
+            </div>
             <div class="song-actions">
-              <button class="btn-action" id="editBtn" title="修改">✏️ 修改</button>
-              <button class="btn-action" id="refreshBtn" title="更新">🔄 更新</button>
-              <button class="btn-action" id="downloadBtn" title="下载">⬇️ 下载</button>
+              <button class="btn-action" id="refreshBtn" title="更新">更新</button>
+              <button class="btn-action danger" id="deleteBtn" title="删除歌单">删除</button>
             </div>
           </div>
           <ul class="song-list" id="songList"></ul>
@@ -41,13 +43,6 @@
       </div>
     </div>
   </section>
-
-  <!-- ===== 页脚 ===== -->
-  <footer class="footer">
-    <div class="container footer-inner">
-      <p>♪ 抖音收藏音乐</p>
-    </div>
-  </footer>
 
   <!-- ===== 播放条 ===== -->
   <div class="player-bar" id="playerBar">
@@ -61,6 +56,7 @@
       <input type="range" id="volumeBar" min="0" max="100" value="80" />
     </div>
     <div class="player-controls">
+      <button id="modeBtn" title="顺序播放">🔁</button>
       <button id="prevBtn">⏮</button>
       <button class="play-toggle" id="playToggle">▶</button>
       <button id="nextBtn">⏭</button>

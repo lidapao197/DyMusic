@@ -6,6 +6,7 @@ let SONGS = [];     // 当前歌单的歌曲 { name, artist, dur, cover, play }
 let playingIndex = -1;
 let isPlaying = false;
 let activePlaylistIndex = -1;
+let playMode = "sequence"; // sequence 顺序播放 | shuffle 随机播放
 
 const audio = new Audio();
 audio.preload = "auto";
@@ -178,9 +179,33 @@ function togglePlay() {
 function step(dir) {
   if (SONGS.length === 0) return;
   if (playingIndex < 0) return playSong(0);
+  if (playMode === "shuffle") {
+    if (SONGS.length === 1) return playSong(0);
+    let idx;
+    do { idx = Math.floor(Math.random() * SONGS.length); } while (idx === playingIndex);
+    return playSong(idx);
+  }
   const n = SONGS.length;
   playSong((playingIndex + dir + n) % n);
 }
+
+/* 播放模式切换：顺序 ↔ 随机 */
+document.getElementById("modeBtn").addEventListener("click", () => {
+  const btn = document.getElementById("modeBtn");
+  if (playMode === "sequence") {
+    playMode = "shuffle";
+    btn.textContent = "🔀";
+    btn.title = "随机播放";
+    btn.classList.add("active");
+    showToast("已切换为随机播放");
+  } else {
+    playMode = "sequence";
+    btn.textContent = "🔁";
+    btn.title = "顺序播放";
+    btn.classList.remove("active");
+    showToast("已切换为顺序播放");
+  }
+});
 
 /* 真实进度条 */
 audio.addEventListener("timeupdate", () => {
@@ -272,25 +297,33 @@ document.getElementById("refreshBtn").addEventListener("click", async () => {
   }
 });
 
-/* 下载当前歌单 */
-document.getElementById("downloadBtn").addEventListener("click", () => {
-  const p = PLAYLISTS[activePlaylistIndex];
-  if (!p || SONGS.length === 0) return;
-  const songs = SONGS.map((s, i) => `${i + 1}. ${s.name} - ${s.artist}`).join("\n");
-  const blob = new Blob([songs], { type: "text/plain" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${p.nickname || p.uid}.txt`;
-  a.click();
-  URL.revokeObjectURL(url);
+/* 全部播放：从第一首开始 */
+document.getElementById("playAllBtn").addEventListener("click", () => {
+  if (SONGS.length === 0) {
+    showToast("当前歌单暂无歌曲", "error");
+    return;
+  }
+  playSong(0);
 });
 
-/* 修改按钮改为「重新粘贴该用户的 cookie」 */
-document.getElementById("editBtn").addEventListener("click", () => {
+/* 删除当前歌单（同时删除本地缓存，cookie 保留） */
+document.getElementById("deleteBtn").addEventListener("click", async () => {
   const p = PLAYLISTS[activePlaylistIndex];
   if (!p) return;
-  openCookieModal(p.uid, p.nickname);
+  if (!confirm(`确定删除歌单「${p.nickname || p.uid}」吗？仅删除本地缓存，cookie 会保留。`)) return;
+  try {
+    const res = await fetch("/api/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ uid: p.uid }),
+    });
+    const data = await res.json();
+    if (data.code !== 0) throw new Error(data.msg || "删除失败");
+    showToast("🗑 歌单已删除", "success");
+    await loadMusic();
+  } catch (e) {
+    showToast("❌ " + e.message, "error");
+  }
 });
 
 /* ============ Cookie 弹窗（新建歌单 / 补充 cookie 共用） ============ */

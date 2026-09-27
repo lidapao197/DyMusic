@@ -11,6 +11,7 @@ env/
 # 运行时缓存与敏感配置
 cache/
 config/cookies.json
+public/data/
 
 # 日志
 *.log

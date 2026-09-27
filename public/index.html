@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>抖音音乐 - 发现你的心动好音乐</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎵</text></svg>" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- ===== 顶部提示 Toast ===== -->
+  <div class="toast" id="toast"></div>
+
+  <!-- ===== 我的歌单 ===== -->
+  <section id="myPlaylists" class="section my-playlists">
+    <div class="container">
+      <div class="section-head">
+        <div class="head-left">
+          <h2>🎧 我的歌单</h2>
+          <button class="btn-create" id="newPlaylistBtn">+ 新建歌单</button>
+        </div>
+      </div>
+      <div class="playlist-layout">
+        <!-- 歌单列表 -->
+        <div class="playlist-panel">
+          <div class="playlist-grid" id="myPlaylistGrid"></div>
+        </div>
+        <!-- 歌曲列表 -->
+        <div class="song-panel">
+          <div class="song-panel-head" id="songPanelHead">
+            <h3>🎵 选择歌单查看歌曲</h3>
+            <div class="song-actions">
+              <button class="btn-action" id="editBtn" title="修改">✏️ 修改</button>
+              <button class="btn-action" id="refreshBtn" title="更新">🔄 更新</button>
+              <button class="btn-action" id="downloadBtn" title="下载">⬇️ 下载</button>
+            </div>
+          </div>
+          <ul class="song-list" id="songList"></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 页脚 ===== -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <p>♪ 抖音收藏音乐</p>
+    </div>
+  </footer>
+
+  <!-- ===== 播放条 ===== -->
+  <div class="player-bar" id="playerBar">
+    <div class="player-cover" id="playerCover">♫</div>
+    <div class="player-info">
+      <div class="player-title" id="playerTitle">未在播放</div>
+      <div class="player-artist" id="playerArtist">选择一首歌开始吧</div>
+    </div>
+    <div class="volume">
+      <button id="volumeIcon" title="静音/取消静音">🔊</button>
+      <input type="range" id="volumeBar" min="0" max="100" value="80" />
+    </div>
+    <div class="player-controls">
+      <button id="prevBtn">⏮</button>
+      <button class="play-toggle" id="playToggle">▶</button>
+      <button id="nextBtn">⏭</button>
+    </div>
+    <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+  </div>
+
+  <!-- ===== Cookie 弹窗（新建歌单 / 补充 cookie 共用） ===== -->
+  <div class="modal-overlay" id="cookieOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="cookieModalTitle">🍪 粘贴 Cookie</h3>
+        <button class="modal-close" id="cookieClose">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="cookieInput">Cookie <span class="required">*</span></label>
+          <textarea id="cookieInput" placeholder='支持 JSON 或浏览器复制的 cookie 字符串（k1=v1; k2=v2）' rows="6"></textarea>
+        </div>
+        <p class="cookie-tip" id="cookieTip"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-cancel" id="cookieCancel">取消</button>
+        <button class="btn-confirm" id="cookieConfirm">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/index.js"></script>
+</body>
+</html>

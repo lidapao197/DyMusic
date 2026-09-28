@@ -19,27 +19,22 @@
         <div class="head-left">
           <h2>🎧 我的歌单</h2>
           <button class="btn-create" id="newPlaylistBtn">+ 新建歌单</button>
+          <button class="btn-create ghost" id="importBtn">导入歌单</button>
+          <input type="file" id="importFile" accept=".json,application/json" hidden />
         </div>
       </div>
-      <div class="playlist-layout">
-        <!-- 歌单列表 -->
-        <div class="playlist-panel">
-          <div class="playlist-grid" id="myPlaylistGrid"></div>
-        </div>
-        <!-- 歌曲列表 -->
-        <div class="song-panel">
-          <div class="song-panel-head" id="songPanelHead">
-            <div class="head-title">
-              <h3>🎵 选择歌单查看歌曲</h3>
-              <button class="btn-action" id="playAllBtn" title="全部播放">▶ 全部播放</button>
-            </div>
-            <div class="song-actions">
-              <button class="btn-action" id="refreshBtn" title="更新">更新</button>
-              <button class="btn-action danger" id="deleteBtn" title="删除歌单">删除</button>
-            </div>
+      <div class="song-panel">
+        <div class="song-panel-head" id="songPanelHead">
+          <div class="head-title">
+            <h3>🎵 加载中...</h3>
+            <div class="playlist-meta" id="playlistMeta"></div>
           </div>
-          <ul class="song-list" id="songList"></ul>
+          <div class="song-actions">
+            <button class="btn-action" id="playAllBtn" title="全部播放">▶ 全部播放</button>
+            <button class="btn-action" id="refreshBtn" title="更新">更新</button>
+          </div>
         </div>
+        <ul class="song-list" id="songList"></ul>
       </div>
     </div>
   </section>
@@ -62,27 +57,6 @@
       <button id="nextBtn">⏭</button>
     </div>
     <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
-  </div>
-
-  <!-- ===== Cookie 弹窗（新建歌单 / 补充 cookie 共用） ===== -->
-  <div class="modal-overlay" id="cookieOverlay">
-    <div class="modal">
-      <div class="modal-header">
-        <h3 id="cookieModalTitle">🍪 粘贴 Cookie</h3>
-        <button class="modal-close" id="cookieClose">✕</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label for="cookieInput">Cookie <span class="required">*</span></label>
-          <textarea id="cookieInput" placeholder='支持 JSON 或浏览器复制的 cookie 字符串（k1=v1; k2=v2）' rows="6"></textarea>
-        </div>
-        <p class="cookie-tip" id="cookieTip"></p>
-      </div>
-      <div class="modal-footer">
-        <button class="btn-cancel" id="cookieCancel">取消</button>
-        <button class="btn-confirm" id="cookieConfirm">确定</button>
-      </div>
-    </div>
   </div>
 
   <script src="js/index.js"></script>

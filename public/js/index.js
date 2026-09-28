@@ -5,7 +5,6 @@ let SONGS = [];     // 当前歌单的歌曲 { name, artist, dur, cover, play }
 /* ============ 状态 ============ */
 let playingIndex = -1;
 let isPlaying = false;
-let activePlaylistIndex = -1;
 let playMode = "sequence"; // sequence 顺序播放 | shuffle 随机播放
 
 const audio = new Audio();
@@ -45,14 +44,9 @@ async function loadMusic() {
     if (data.code !== 0) throw new Error(data.msg || "接口错误");
     PLAYLISTS = data.playlists || [];
     if (PLAYLISTS.length > 0) {
-      if (activePlaylistIndex < 0 || activePlaylistIndex >= PLAYLISTS.length) {
-        activePlaylistIndex = 0;
-      }
-      selectPlaylist(activePlaylistIndex);
+      selectPlaylist();
     } else {
-      activePlaylistIndex = -1;
       SONGS = [];
-      renderPlaylists();
       renderSongs();
       updatePlayer(null);
     }
@@ -61,9 +55,14 @@ async function loadMusic() {
   }
 }
 
-function selectPlaylist(index) {
-  activePlaylistIndex = index;
-  const p = PLAYLISTS[index];
+/* 单歌单模式：数据里有多个时，显示最近更新的一份 */
+function activePlaylist() {
+  if (PLAYLISTS.length === 0) return null;
+  return PLAYLISTS.reduce((a, b) => ((b.ts || 0) > (a.ts || 0) ? b : a));
+}
+
+function selectPlaylist() {
+  const p = activePlaylist();
   SONGS = (p ? p.list : []).map((m) => ({
     name: m.title,
     artist: m.author,
@@ -74,39 +73,33 @@ function selectPlaylist(index) {
   playingIndex = -1;
   isPlaying = false;
   audio.pause();
-  renderPlaylists();
   renderSongs();
   updatePlayer(null);
 }
 
 /* ============ 渲染 ============ */
-function renderPlaylists() {
-  const grid = document.getElementById("myPlaylistGrid");
-  if (PLAYLISTS.length === 0) {
-    grid.innerHTML = `<div class="empty-tip">暂无歌单，点「+ 新建歌单」粘贴 cookie 添加</div>`;
-    return;
-  }
-  grid.innerHTML = PLAYLISTS.map(
-    (p, i) => `
-    <div class="playlist-card ${i === activePlaylistIndex ? 'active' : ''}" data-index="${i}">
-      <div class="playlist-title">${esc(p.nickname || p.uid)}</div>
-      <span class="playlist-count">${p.count} 首</span>
-    </div>`
-  ).join("");
+function fmtTime(ts) {
+  const d = new Date(Number(ts) * 1000);
+  if (isNaN(d.getTime())) return "未知";
+  const p2 = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
 }
 
 function renderSongs() {
   const list = document.getElementById("songList");
   const head = document.getElementById("songPanelHead");
-  const p = PLAYLISTS[activePlaylistIndex];
+  const meta = document.getElementById("playlistMeta");
+  const p = activePlaylist();
 
   if (!p) {
     head.querySelector("h3").textContent = "🎵 暂无歌单";
+    meta.textContent = "";
     list.innerHTML = "";
     return;
   }
 
-  head.querySelector("h3").textContent = `🎵 ${p.nickname || p.uid}`;
+  head.querySelector("h3").textContent = `🎵 ${p.nickname || p.uid || "歌单"}`;
+  meta.textContent = `${p.count} 首 · 更新于 ${fmtTime(p.ts)}`;
 
   if (SONGS.length === 0) {
     list.innerHTML = `<div class="empty-tip">暂无歌曲</div>`;
@@ -227,12 +220,6 @@ document.querySelector(".progress").addEventListener("click", (e) => {
 });
 
 /* ============ 事件绑定 ============ */
-document.getElementById("myPlaylistGrid").addEventListener("click", (e) => {
-  const card = e.target.closest(".playlist-card");
-  if (!card) return;
-  selectPlaylist(Number(card.dataset.index));
-});
-
 document.getElementById("songList").addEventListener("click", (e) => {
   const item = e.target.closest(".song-item");
   if (!item) return;
@@ -271,31 +258,25 @@ volumeIcon.addEventListener("click", () => {
 });
 
 /* ============ 歌单操作 ============ */
-/* 更新：按当前歌单 uid 重新拉取 */
-document.getElementById("refreshBtn").addEventListener("click", async () => {
-  const p = PLAYLISTS[activePlaylistIndex];
-  if (!p) return;
+/* 新建歌单 / 更新 共用：后端读取 config/cookies.txt 拉取收藏并整体覆盖本地数据。
+   cookies.txt 不存在时，后端返回提示并停止操作 */
+async function doRefresh() {
   const head = document.getElementById("songPanelHead");
+  const p = activePlaylist();
   head.querySelector("h3").textContent = "🎵 更新中...";
   try {
-    const res = await fetch("/api/refresh", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uid: p.uid }),
-    });
+    const res = await fetch("/api/refresh", { method: "POST" });
     const data = await res.json();
     if (data.code !== 0) throw new Error(data.msg || "更新失败");
     await loadMusic();
-    // 更新后仍停留在该歌单
-    const idx = PLAYLISTS.findIndex((x) => x.uid === p.uid);
-    if (idx >= 0) selectPlaylist(idx);
     showToast(`✅ 更新成功，共 ${data.count} 首`, "success");
   } catch (e) {
-    head.querySelector("h3").textContent = "🎵 " + (p.nickname || p.uid);
+    head.querySelector("h3").textContent = "🎵 " + (p ? (p.nickname || p.uid || "歌单") : "歌单");
     showToast("❌ " + e.message, "error");
-    if (/cookie/i.test(e.message)) openCookieModal(p.uid, p.nickname);
   }
-});
+}
+
+document.getElementById("refreshBtn").addEventListener("click", doRefresh);
 
 /* 全部播放：从第一首开始 */
 document.getElementById("playAllBtn").addEventListener("click", () => {
@@ -306,94 +287,37 @@ document.getElementById("playAllBtn").addEventListener("click", () => {
   playSong(0);
 });
 
-/* 删除当前歌单（同时删除本地缓存，cookie 保留） */
-document.getElementById("deleteBtn").addEventListener("click", async () => {
-  const p = PLAYLISTS[activePlaylistIndex];
-  if (!p) return;
-  if (!confirm(`确定删除歌单「${p.nickname || p.uid}」吗？仅删除本地缓存，cookie 会保留。`)) return;
+/* ============ 导入歌单 JSON（格式同 cache/music.json，支持单个对象或数组） ============ */
+const importFile = document.getElementById("importFile");
+document.getElementById("importBtn").addEventListener("click", () => importFile.click());
+importFile.addEventListener("change", async () => {
+  const file = importFile.files[0];
+  importFile.value = ""; // 允许重复选择同一个文件
+  if (!file) return;
+  let payload;
   try {
-    const res = await fetch("/api/delete", {
+    payload = JSON.parse(await file.text());
+  } catch {
+    showToast("❌ JSON 文件解析失败", "error");
+    return;
+  }
+  try {
+    const res = await fetch("/api/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uid: p.uid }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
-    if (data.code !== 0) throw new Error(data.msg || "删除失败");
-    showToast("🗑 歌单已删除", "success");
+    if (data.code !== 0) throw new Error(data.msg || "导入失败");
     await loadMusic();
+    showToast(`✅ 导入成功：${data.nicknames.join("、")}`, "success");
   } catch (e) {
     showToast("❌ " + e.message, "error");
   }
 });
 
-/* ============ Cookie 弹窗（新建歌单 / 补充 cookie 共用） ============ */
-const cookieOverlay = document.getElementById("cookieOverlay");
-const cookieInput = document.getElementById("cookieInput");
-const cookieTip = document.getElementById("cookieTip");
-let cookieMode = "create"; // 'create' 新建歌单 | 'fix' 补充指定 uid
-let cookieUid = "";
-
-function openCookieModal(uid = "", nickname = "") {
-  cookieUid = uid;
-  cookieMode = uid ? "fix" : "create";
-  document.getElementById("cookieModalTitle").textContent =
-    cookieMode === "fix" ? `🍪 更新「${nickname}」的 Cookie` : "🍪 粘贴 Cookie 新建歌单";
-  cookieTip.textContent = cookieMode === "fix"
-    ? "该用户的 cookie 缺失或已失效，请从浏览器重新复制后粘贴到下面"
-    : "从浏览器 F12 复制抖音 cookie 粘贴到下面，保存后会自动拉取该用户的收藏音乐";
-  cookieInput.value = "";
-  cookieOverlay.classList.add("active");
-  cookieInput.focus();
-}
-
-function closeCookieModal() {
-  cookieOverlay.classList.remove("active");
-}
-
-document.getElementById("newPlaylistBtn").addEventListener("click", () => openCookieModal());
-document.getElementById("cookieClose").addEventListener("click", closeCookieModal);
-document.getElementById("cookieCancel").addEventListener("click", closeCookieModal);
-cookieOverlay.addEventListener("click", (e) => {
-  if (e.target === cookieOverlay) closeCookieModal();
-});
-
-document.getElementById("cookieConfirm").addEventListener("click", async () => {
-  const raw = cookieInput.value.trim();
-  if (!raw) { cookieInput.focus(); return; }
-  const btn = document.getElementById("cookieConfirm");
-  btn.disabled = true;
-  btn.textContent = "校验中...";
-  try {
-    // 1. 保存 cookie
-    const res = await fetch("/api/cookie", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cookie: raw, uid: cookieUid || undefined }),
-    });
-    const data = await res.json();
-    if (data.code !== 0) throw new Error(data.msg || "cookie 校验失败");
-    // 2. 拉取该用户收藏
-    btn.textContent = "拉取中...";
-    const r2 = await fetch("/api/refresh", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uid: data.uid }),
-    });
-    const d2 = await r2.json();
-    if (d2.code !== 0) throw new Error(d2.msg || "拉取失败");
-    closeCookieModal();
-    await loadMusic();
-    const idx = PLAYLISTS.findIndex((x) => x.uid === data.uid);
-    if (idx >= 0) selectPlaylist(idx);
-    showToast(`✅ 「${d2.nickname}」更新成功，共 ${d2.count} 首`, "success");
-  } catch (e) {
-    cookieTip.textContent = "⚠️ " + e.message;
-    showToast("❌ " + e.message, "error");
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "确定";
-  }
-});
+/* 新建歌单：与更新相同，需先手动创建 config/cookies.txt */
+document.getElementById("newPlaylistBtn").addEventListener("click", doRefresh);
 
 /* ============ 初始化 ============ */
 loadMusic();

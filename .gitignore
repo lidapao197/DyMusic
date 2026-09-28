@@ -8,10 +8,10 @@ venv/
 .venv/
 env/
 
-# 运行时缓存与敏感配置
-cache/
-config/cookies.json
-public/data/
+
+# config 目录内容（cookie 等敏感信息）不上传，仅保留目录本身
+config/*
+!config/.gitkeep
 
 # 日志
 *.log

@@ -2,9 +2,9 @@
 """
 抖音收藏音乐 - 独立网站服务
 - 托管 public/ 静态页面
-- GET  /api/music   返回本地缓存的全部用户歌单（不请求抖音）
-- POST /api/refresh 按 uid 更新对应歌单（请求抖音，需该用户的 cookie）
-- POST /api/cookie   粘贴并校验 cookie，按 uid 保存到 config/cookies.json
+- GET  /api/music   返回 data/music.json 里的歌单（不请求抖音）
+- POST /api/refresh 读取 config/cookies.txt（需手动创建）拉取收藏，整体覆盖
+- POST /api/import   导入歌单 JSON（格式同 data/music.json），覆盖本地数据
 """
 import json
 import logging
@@ -22,76 +22,63 @@ from requester import Request
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CACHE_PATH = os.path.join(BASE_DIR, 'cache', 'music.json')
-COOKIES_PATH = os.path.join(BASE_DIR, 'config', 'cookies.json')
+DATA_PATH = os.path.join(BASE_DIR, 'data', 'music.json')
+COOKIES_PATH = os.path.join(BASE_DIR, 'config', 'cookies.txt')
+LOG_PATH = os.path.join(BASE_DIR, 'logs', 'dymusic.log')
 
 app = Flask(__name__, static_folder=os.path.join(BASE_DIR, 'public'), static_url_path='')
 
 
-# ---------- 歌单缓存：每个用户一份，永久有效，手动更新 ----------
-# 结构：[{'uid': '...', 'nickname': '...', 'ts': 123.0, 'data': [...]}]
-_cache = []
+# ---------- 日志：控制台 + logs/dymusic.log 双写 ----------
+os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
+_console_fmt = logging.Formatter('[%(asctime)s] %(message)s', datefmt='%H:%M:%S')
+_file_fmt = logging.Formatter('[%(asctime)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+logging.basicConfig(level=logging.INFO)
+for _h in (logging.StreamHandler(), logging.FileHandler(LOG_PATH, 'a', encoding='utf-8')):
+    _h.setFormatter(_console_fmt if isinstance(_h, logging.StreamHandler) else _file_fmt)
+    logging.getLogger().addHandler(_h)
+
+
+# ---------- 歌单数据：单歌单，有新数据整体覆盖 ----------
+# 结构：{'uid': '...', 'nickname': '...', 'ts': 123.0, 'data': [...]}
+_playlist = None
 
 
 def _load_cache():
+    global _playlist
     try:
-        with open(CACHE_PATH, 'r', encoding='utf-8') as f:
+        with open(DATA_PATH, 'r', encoding='utf-8') as f:
             loaded = json.load(f)
     except Exception:
         return
-    if isinstance(loaded, list):
-        _cache.extend(loaded)
-    elif isinstance(loaded, dict) and isinstance(loaded.get('users'), dict):
-        # 兼容旧的 {'users': {uid: {...}}} 格式
-        for uid, u in loaded['users'].items():
-            _cache.append({'uid': uid, 'nickname': u.get('nickname', ''),
-                           'ts': u.get('ts', 0), 'data': u.get('data')})
+    if isinstance(loaded, dict) and isinstance(loaded.get('data'), list):
+        _playlist = loaded
+    elif isinstance(loaded, list):
+        # 兼容旧的多歌单数组：取最近更新的一份
+        items = [u for u in loaded if isinstance(u, dict) and isinstance(u.get('data'), list)]
+        if items:
+            _playlist = max(items, key=lambda u: u.get('ts') or 0)
 
 
 def _save_cache():
     try:
-        os.makedirs(os.path.dirname(CACHE_PATH), exist_ok=True)
-        with open(CACHE_PATH, 'w', encoding='utf-8') as f:
-            json.dump(_cache, f, ensure_ascii=False)
+        os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
+        with open(DATA_PATH, 'w', encoding='utf-8') as f:
+            json.dump(_playlist, f, ensure_ascii=False)
     except Exception:
         pass
-
-
-def _find_slot(uid: str, create: bool = False):
-    for item in _cache:
-        if item.get('uid') == uid:
-            return item
-    if create:
-        slot = {'uid': uid, 'nickname': '', 'ts': 0, 'data': None}
-        _cache.append(slot)
-        return slot
-    return None
 
 
 _load_cache()
 
 
-# ---------- cookie：按 uid 存 ----------
-def _load_cookies() -> dict:
+# ---------- cookie：从 config/cookies.txt 读取（文件需手动创建） ----------
+def _load_cookie_text() -> str:
     try:
         with open(COOKIES_PATH, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            return data if isinstance(data, dict) else {}
+            return f.read().strip()
     except Exception:
-        return {}
-
-
-def _save_cookie(uid: str, cookie: dict):
-    cookies = _load_cookies()
-    cookies[uid] = cookie
-    os.makedirs(os.path.dirname(COOKIES_PATH), exist_ok=True)
-    with open(COOKIES_PATH, 'w', encoding='utf-8') as f:
-        json.dump(cookies, f, ensure_ascii=False)
-
-
-def _get_cookie(uid: str):
-    """按 uid 取 cookie，没有返回 None"""
-    return _load_cookies().get(uid)
+        return ''
 
 
 # ---------- 抖音接口 ----------
@@ -142,57 +129,44 @@ def index():
 
 @app.route('/api/music')
 def api_music():
-    """返回本地缓存的全部歌单，不请求抖音"""
+    """返回 data/music.json 里的歌单，不请求抖音"""
+    slots = [_playlist] if _playlist else []
     playlists = [{
-        'uid': u['uid'],
+        'uid': u.get('uid', ''),
         'nickname': u['nickname'],
         'ts': u['ts'],
         'count': len(u['data'] or []),
         'list': u['data'] or [],
-    } for u in _cache]
+    } for u in slots]
     return jsonify({'code': 0, 'playlists': playlists})
 
 
 @app.route('/api/refresh', methods=['POST'])
 def api_refresh():
-    """按 uid 更新歌单：用该用户的 cookie 重新拉取收藏"""
-    uid = str((request.get_json(silent=True) or {}).get('uid', ''))
-    if not uid:
-        return jsonify({'code': -1, 'msg': '缺少 uid'}), 400
-    cookie = _get_cookie(uid)
+    """读取 config/cookies.txt 拉取收藏，整体覆盖 data/music.json。
+    文件不存在时提示先创建，停止操作"""
+    global _playlist
+    if not os.path.exists(COOKIES_PATH):
+        return jsonify({'code': 2, 'msg': '请先在 config 文件夹下创建 cookies.txt，并粘贴抖音 cookie 内容'}), 400
+    raw = _load_cookie_text()
+    if not raw:
+        return jsonify({'code': 2, 'msg': '缺少 cookie，请先粘贴'}), 400
+    cookie = _parse_cookie(raw)
     if not cookie:
-        return jsonify({'code': 2, 'msg': '缺少该用户的 cookie，请粘贴补充'}), 400
+        return jsonify({'code': 3, 'msg': 'cookie 已失效，请重新粘贴'}), 400
     req = Request(cookie)
     u = fetch_user(req)
     if not u:
         return jsonify({'code': 3, 'msg': 'cookie 已失效，请重新粘贴'}), 400
-    if u['uid'] != uid:
-        return jsonify({'code': 4, 'msg': f"cookie 属于「{u['nickname']}」，与该歌单用户不符"}), 400
     try:
         data = fetch_all_music(req)
     except Exception as e:
         return jsonify({'code': -1, 'msg': str(e)}), 500
-    slot = _find_slot(uid, create=True)
-    slot.update({'nickname': u['nickname'] or slot['nickname'], 'data': data, 'ts': time.time()})
+    old_nick = (_playlist or {}).get('nickname', '')
+    _playlist = {'uid': u['uid'], 'nickname': u['nickname'] or old_nick,
+                 'ts': time.time(), 'data': data}
     _save_cache()
-    return jsonify({'code': 0, 'uid': uid, 'count': len(data), 'nickname': slot['nickname']})
-
-
-@app.route('/api/cookie', methods=['POST'])
-def api_cookie():
-    """粘贴 cookie：调接口校验有效性后按 uid 保存。可选传 uid（须与 cookie 对应用户一致）"""
-    body = request.get_json(silent=True) or {}
-    cookie = _parse_cookie(body.get('cookie', ''))
-    if not cookie:
-        return jsonify({'code': -1, 'msg': 'cookie 格式不对，支持 JSON 对象或浏览器复制的 cookie 字符串'}), 400
-    u = fetch_user(Request(cookie))
-    if not u:
-        return jsonify({'code': 3, 'msg': 'cookie 无效或已失效'}), 400
-    want_uid = str(body.get('uid', ''))
-    if want_uid and u['uid'] != want_uid:
-        return jsonify({'code': 4, 'msg': f"cookie 属于「{u['nickname']}」，与当前歌单用户不符"}), 400
-    _save_cookie(u['uid'], cookie)
-    return jsonify({'code': 0, 'uid': u['uid'], 'nickname': u['nickname']})
+    return jsonify({'code': 0, 'count': len(data), 'nickname': _playlist['nickname']})
 
 
 def _parse_cookie(text: str):
@@ -214,25 +188,34 @@ def _parse_cookie(text: str):
     return d or None
 
 
-@app.route('/api/delete', methods=['POST'])
-def api_delete():
-    """按 uid 删除本地缓存的歌单（cookie 保留，可再次粘贴/更新恢复）"""
-    uid = str((request.get_json(silent=True) or {}).get('uid', ''))
-    if not uid:
-        return jsonify({'code': -1, 'msg': '缺少 uid'}), 400
-    before = len(_cache)
-    _cache[:] = [u for u in _cache if u.get('uid') != uid]
-    if len(_cache) == before:
-        return jsonify({'code': 1, 'msg': '歌单不存在'}), 404
+@app.route('/api/import', methods=['POST'])
+def api_import():
+    """导入歌单 JSON（单个对象或数组，格式同 data/music.json），覆盖本地数据"""
+    global _playlist
+    body = request.get_json(silent=True)
+    item = body if isinstance(body, dict) and isinstance(body.get('data'), list) else None
+    if item is None and isinstance(body, list):
+        items = [u for u in body if isinstance(u, dict) and isinstance(u.get('data'), list)]
+        if items:
+            item = max(items, key=lambda u: u.get('ts') or 0)  # 多个时取最近更新的
+    if not item:
+        return jsonify({'code': -1, 'msg': '没有识别到有效歌单（需包含 data 字段）'}), 400
+    try:
+        ts = float(item.get('ts') or time.time())
+    except (TypeError, ValueError):
+        ts = time.time()
+    uid = str(item.get('uid') or '')
+    _playlist = {'uid': uid, 'nickname': str(item.get('nickname') or uid or '导入歌单'),
+                 'ts': ts, 'data': item['data']}
     _save_cache()
-    return jsonify({'code': 0, 'uid': uid})
+    return jsonify({'code': 0, 'count': 1, 'uid': uid,
+                    'nicknames': [_playlist['nickname']]})
 
 
 @app.after_request
 def _access_log(resp):
-    """简洁请求日志：[时:分:秒] METHOD /path -> 状态码"""
-    print(f'[{time.strftime("%H:%M:%S")}] {request.method} {request.path} -> {resp.status_code}',
-          flush=True)
+    """简洁请求日志：同时写控制台和 logs/dymusic.log"""
+    logging.info(f'{request.method} {request.path} -> {resp.status_code}')
     return resp
 
 
@@ -264,18 +247,18 @@ def _open_browser_when_ready(port: int):
 
 if __name__ == '__main__':
     port = 9002
-    print()
-    print('  DyMusic 抖音收藏音乐')
-    print('  ' + '-' * 44)
-    print(f'  本机访问 : http://127.0.0.1:{port}')
-    print(f'  局域网   : http://{_lan_ip()}:{port}')
-    print('  停止服务 : 直接关闭窗口，或按 Ctrl+C')
-    print('  ' + '-' * 44)
-    print()
+    logging.info('')
+    logging.info('DyMusic 抖音收藏音乐')
+    logging.info('-' * 44)
+    logging.info(f'本机访问 : http://127.0.0.1:{port}')
+    logging.info(f'局域网   : http://{_lan_ip()}:{port}')
+    logging.info(f'日志文件 : {LOG_PATH}')
+    logging.info('停止服务 : 直接关闭窗口，或按 Ctrl+C')
+    logging.info('-' * 44)
     try:
         import flask.cli
         flask.cli.show_server_banner = lambda *a, **k: None  # 去掉 "Serving Flask app" 英文横幅
         threading.Thread(target=_open_browser_when_ready, args=(port,), daemon=True).start()
         app.run(host='0.0.0.0', port=port)
     except KeyboardInterrupt:
-        print('\n  服务已停止，再见')
+        logging.info('服务已停止，再见')

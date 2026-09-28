@@ -142,9 +142,16 @@ def api_music():
 
 @app.route('/api/refresh', methods=['POST'])
 def api_refresh():
-    """读取 config/cookies.txt 拉取收藏，整体覆盖 public/data/music.json。
-    文件不存在时提示先创建，停止操作"""
+    """拉取收藏并整体覆盖 public/data/music.json。
+    请求体可选 {"cookie": "..."}：有则先原样保存到 config/cookies.txt；
+    无 cookie 且文件不存在时提示先创建，停止操作"""
     global _playlist
+    body = request.get_json(silent=True) or {}
+    new_cookie = str(body.get('cookie') or '').strip()
+    if new_cookie:
+        os.makedirs(os.path.dirname(COOKIES_PATH), exist_ok=True)
+        with open(COOKIES_PATH, 'w', encoding='utf-8') as f:
+            f.write(new_cookie)
     if not os.path.exists(COOKIES_PATH):
         return jsonify({'code': 2, 'msg': '请先在 config 文件夹下创建 cookies.txt，并粘贴抖音 cookie 内容'}), 400
     raw = _load_cookie_text()

@@ -286,23 +286,54 @@ volumeIcon.addEventListener("click", () => {
 });
 
 /* ============ 歌单操作 ============ */
-/* 新建歌单 / 更新 共用：后端读取 config/cookies.txt 拉取收藏并整体覆盖本地数据。
-   cookies.txt 不存在时，后端返回提示并停止操作 */
+/* 更新：有歌单时直接拉取；没有歌单时先弹窗粘贴 cookie（保存到 config/cookies.txt）再拉取 */
 async function doRefresh() {
+  if (PLAYLISTS.length === 0) {
+    openCookieModal();
+    return;
+  }
+  await doFetchMusic();
+}
+
+async function doFetchMusic(cookie) {
   const head = document.getElementById("songPanelHead");
   const p = activePlaylist();
   head.querySelector("h3").textContent = "🎵 更新中...";
   try {
-    const res = await fetch("/api/refresh", { method: "POST" });
+    const res = await fetch("/api/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cookie ? { cookie } : {}),
+    });
     const data = await res.json();
     if (data.code !== 0) throw new Error(data.msg || "更新失败");
     await loadMusic();
     showToast(`✅ 更新成功，共 ${data.count} 首`, "success");
   } catch (e) {
-    head.querySelector("h3").textContent = "🎵 " + (p ? (p.nickname || p.uid || "歌单") : "歌单");
+    head.querySelector("h3").textContent = "🎵 " + (p ? (p.nickname || p.uid || "歌单") : "暂无歌单");
     showToast("❌ " + e.message, "error");
   }
 }
+
+/* cookie 弹窗 */
+function openCookieModal() {
+  document.getElementById("cookieInput").value = "";
+  document.getElementById("cookieModal").hidden = false;
+  document.getElementById("cookieInput").focus();
+}
+function closeCookieModal() {
+  document.getElementById("cookieModal").hidden = true;
+}
+document.getElementById("cookieCancel").addEventListener("click", closeCookieModal);
+document.getElementById("cookieSave").addEventListener("click", async () => {
+  const cookie = document.getElementById("cookieInput").value.trim();
+  if (!cookie) {
+    showToast("❌ 请先粘贴 cookie 内容", "error");
+    return;
+  }
+  closeCookieModal();
+  await doFetchMusic(cookie);
+});
 
 document.getElementById("refreshBtn").addEventListener("click", doRefresh);
 
@@ -314,9 +345,6 @@ document.getElementById("playAllBtn").addEventListener("click", () => {
   }
   playSong(0);
 });
-
-/* 新建歌单：与更新相同，需先手动创建 config/cookies.txt */
-document.getElementById("newPlaylistBtn").addEventListener("click", doRefresh);
 
 /* ============ 初始化 ============ */
 loadMusic();

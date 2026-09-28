@@ -18,7 +18,6 @@
       <div class="section-head">
         <div class="head-left">
           <h2>🎧 我的歌单</h2>
-          <button class="btn-create" id="newPlaylistBtn">+ 新建歌单</button>
         </div>
       </div>
       <div class="song-panel">
@@ -55,6 +54,19 @@
       <button id="nextBtn">⏭</button>
     </div>
     <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+  </div>
+
+  <!-- cookie 粘贴弹窗（无歌单时点「更新」弹出） -->
+  <div class="modal-mask" id="cookieModal" hidden>
+    <div class="modal">
+      <h4>粘贴抖音 Cookie</h4>
+      <p class="modal-tip">检测到还没有歌单。粘贴浏览器里的抖音 Cookie（F12 → 网络 → 请求头里的 Cookie），保存后将自动拉取收藏并创建歌单。</p>
+      <textarea id="cookieInput" rows="7" placeholder="k1=v1; k2=v2; ...（也支持粘贴 JSON）"></textarea>
+      <div class="modal-actions">
+        <button class="btn-create ghost" id="cookieCancel">取消</button>
+        <button class="btn-create" id="cookieSave">保存并拉取</button>
+      </div>
+    </div>
   </div>
 
   <script src="js/index.js"></script>

@@ -65,6 +65,15 @@ button { font-family: inherit; cursor: pointer; }
   box-shadow: 0 6px 20px rgba(254, 44, 85, 0.5);
 }
 .btn-create:active { transform: translateY(0); }
+/* 次级样式（弹窗取消按钮等） */
+.btn-create.ghost {
+  background: transparent; color: var(--text-dim);
+  border: 1px solid rgba(255, 255, 255, 0.18); box-shadow: none;
+}
+.btn-create.ghost:hover {
+  border-color: var(--douyin-red); color: var(--douyin-red);
+  box-shadow: none; transform: translateY(-2px);
+}
 
 /* ============ 歌曲面板 ============ */
 .song-panel {
@@ -256,6 +265,36 @@ button { font-family: inherit; cursor: pointer; }
 .toast.show { transform: translate(-50%, 0); opacity: 1; }
 .toast.success { border-color: rgba(37, 244, 191, 0.5); box-shadow: 0 8px 30px rgba(37, 244, 191, 0.15); }
 .toast.error { border-color: rgba(254, 44, 85, 0.5); box-shadow: 0 8px 30px rgba(254, 44, 85, 0.2); }
+
+/* ============ cookie 粘贴弹窗 ============ */
+.modal-mask {
+  position: fixed; inset: 0; z-index: 900;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-mask[hidden] { display: none; }
+.modal {
+  width: min(500px, 92vw);
+  background: var(--bg-card);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+.modal h4 { margin: 0 0 8px; font-size: 16px; }
+.modal .modal-tip { margin: 0 0 14px; font-size: 12px; color: var(--text-dim); line-height: 1.6; }
+.modal textarea {
+  width: 100%; box-sizing: border-box;
+  background: var(--bg); color: var(--text);
+  border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px;
+  padding: 10px 12px; font-size: 12px; line-height: 1.5;
+  resize: vertical; outline: none; font-family: monospace;
+}
+.modal textarea:focus { border-color: var(--douyin-cyan); }
+.modal .modal-actions {
+  display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;
+}
 
 /* ============ 滚动条美化 ============ */
 ::-webkit-scrollbar {

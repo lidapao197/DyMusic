@@ -30,11 +30,11 @@ DyMusic/
 ├── public/                 # 前端静态文件
 │   ├── index.html
 │   ├── css/style.css
-│   └── js/index.js
+│   ├── js/index.js
+│   └── data/
+│       └── music.json      # 歌单数据，单歌单整体覆盖（本地更新自动写入）
 ├── config/
 │   └── cookies.txt         # 抖音 cookie，原样保存（自动生成，勿提交）
-└── data/
-    └── music.json          # 歌单数据，单歌单整体覆盖（自动生成，勿提交）
 ```
 
 ## 环境要求
@@ -71,8 +71,8 @@ python app.py
 ## 使用说明
 
 1. 手动创建 `config/cookies.txt`，把抖音 cookie 粘贴进去（浏览器 F12 复制，支持 `k1=v1; k2=v2` 字符串或 JSON 格式）
-2. 打开页面点「新建歌单」，自动拉取收藏音乐并保存到 `data/music.json`
-3. 以后打开页面直接读 `data/music.json`，不请求抖音；点「更新」重新拉取覆盖
+2. 打开页面点「新建歌单」，自动拉取收藏音乐并保存到 `public/data/music.json`
+3. 以后打开页面直接读 `public/data/music.json`，不请求抖音；点「更新」重新拉取覆盖
 4. `config/cookies.txt` 不存在时，点「新建歌单」或「更新」会提示先创建文件并停止操作
 5. Cookie 失效后点「更新」会提示，重新编辑 `config/cookies.txt` 再点「更新」即可
 
@@ -80,13 +80,25 @@ python app.py
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/music` | 返回 `data/music.json` 里的歌单（不请求抖音） |
+| GET | `/api/music` | 返回 `public/data/music.json` 里的歌单（不请求抖音） |
 | POST | `/api/refresh` | 读取 `config/cookies.txt` 拉取收藏，整体覆盖；文件不存在则提示并停止 |
 
 ## 注意事项
 
 - `config/cookies.txt` 含登录凭证，已在 `.gitignore` 中忽略，请勿外传或提交
 - 仅供个人学习使用
+
+## Cloudflare Pages 在线部署（纯静态，只浏览不更新）
+
+在线版不请求抖音接口：页面直接读仓库里的 `public/data/music.json`（不含 cookie）。
+
+1. 本地点「更新」歌单后，提交推送 `public/data/music.json`
+2. Cloudflare Pages 检测到推送后自动重新部署
+3. CF 控制台 → Workers & Pages → Create → Pages → 连接 GitHub 仓库 `DyMusic`
+   - 构建命令：**留空**
+   - 输出目录：**`public`**
+
+在线版自动隐藏「新建歌单 / 更新」按钮（需要本地后端才能用）；本地双击 `start.bat` 的完整功能不受影响。
 
 ## 参考项目
 

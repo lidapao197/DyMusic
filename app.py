@@ -2,7 +2,7 @@
 """
 抖音收藏音乐 - 独立网站服务
 - 托管 public/ 静态页面
-- GET  /api/music   返回 data/music.json 里的歌单（不请求抖音）
+- GET  /api/music   返回 public/data/music.json 里的歌单（不请求抖音）
 - POST /api/refresh 读取 config/cookies.txt（需手动创建）拉取收藏，整体覆盖
 """
 import json
@@ -21,7 +21,7 @@ from requester import Request
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.path.join(BASE_DIR, 'data', 'music.json')
+DATA_PATH = os.path.join(BASE_DIR, 'public', 'data', 'music.json')
 COOKIES_PATH = os.path.join(BASE_DIR, 'config', 'cookies.txt')
 LOG_PATH = os.path.join(BASE_DIR, 'logs', 'dymusic.log')
 
@@ -128,7 +128,7 @@ def index():
 
 @app.route('/api/music')
 def api_music():
-    """返回 data/music.json 里的歌单，不请求抖音"""
+    """返回 public/data/music.json 里的歌单，不请求抖音"""
     slots = [_playlist] if _playlist else []
     playlists = [{
         'uid': u.get('uid', ''),
@@ -142,7 +142,7 @@ def api_music():
 
 @app.route('/api/refresh', methods=['POST'])
 def api_refresh():
-    """读取 config/cookies.txt 拉取收藏，整体覆盖 data/music.json。
+    """读取 config/cookies.txt 拉取收藏，整体覆盖 public/data/music.json。
     文件不存在时提示先创建，停止操作"""
     global _playlist
     if not os.path.exists(COOKIES_PATH):

@@ -38,10 +38,16 @@ function showToast(msg, type = "") { // type: 'success' | 'error' | ''
 async function loadMusic() {
   const head = document.getElementById("songPanelHead");
   head.querySelector("h3").textContent = "🎵 加载中...";
+  let data = null;
   try {
     const res = await fetch("/api/music");
-    const data = await res.json();
-    if (data.code !== 0) throw new Error(data.msg || "接口错误");
+    data = await res.json();
+  } catch { /* 本地服务不可用（如 CF Pages 静态部署） */ }
+  if (!data || data.code !== 0 || !(data.playlists || []).length) {
+    data = await loadStaticPlaylist();
+  }
+  try {
+    if (!data) throw new Error("无数据");
     PLAYLISTS = data.playlists || [];
     if (PLAYLISTS.length > 0) {
       selectPlaylist();
@@ -52,6 +58,28 @@ async function loadMusic() {
     }
   } catch (e) {
     head.querySelector("h3").textContent = "🎵 加载失败：" + e.message;
+  }
+}
+
+/* 静态回退：直接读 public/data/music.json（与后端读写同一份文件，不含 cookie） */
+async function loadStaticPlaylist() {
+  try {
+    const res = await fetch("data/music.json");
+    const snap = await res.json();
+    if (!snap || !Array.isArray(snap.data) || snap.data.length === 0) return null;
+    // 静态模式下隐藏需要本地后端的按钮
+    for (const id of ["newPlaylistBtn", "refreshBtn"]) {
+      const btn = document.getElementById(id);
+      if (btn) btn.style.display = "none";
+    }
+    return {
+      playlists: [{
+        uid: snap.uid, nickname: snap.nickname, ts: snap.ts,
+        count: snap.data.length, list: snap.data,
+      }],
+    };
+  } catch {
+    return null;
   }
 }
 

@@ -287,35 +287,6 @@ document.getElementById("playAllBtn").addEventListener("click", () => {
   playSong(0);
 });
 
-/* ============ 导入歌单 JSON（格式同 cache/music.json，支持单个对象或数组） ============ */
-const importFile = document.getElementById("importFile");
-document.getElementById("importBtn").addEventListener("click", () => importFile.click());
-importFile.addEventListener("change", async () => {
-  const file = importFile.files[0];
-  importFile.value = ""; // 允许重复选择同一个文件
-  if (!file) return;
-  let payload;
-  try {
-    payload = JSON.parse(await file.text());
-  } catch {
-    showToast("❌ JSON 文件解析失败", "error");
-    return;
-  }
-  try {
-    const res = await fetch("/api/import", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (data.code !== 0) throw new Error(data.msg || "导入失败");
-    await loadMusic();
-    showToast(`✅ 导入成功：${data.nicknames.join("、")}`, "success");
-  } catch (e) {
-    showToast("❌ " + e.message, "error");
-  }
-});
-
 /* 新建歌单：与更新相同，需先手动创建 config/cookies.txt */
 document.getElementById("newPlaylistBtn").addEventListener("click", doRefresh);
 

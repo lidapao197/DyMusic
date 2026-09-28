@@ -7,8 +7,7 @@
 - 🎵 浏览、播放抖音收藏音乐（封面、进度条、上一首/下一首）
 - 🔁 顺序播放 / 🔀 随机播放切换
 - 🔊 音量调节与静音，音量自动记忆
-- 🔄 手动更新歌单，新数据整体覆盖；Cookie 失效时网页弹窗粘贴新 Cookie
-- 📥 导入歌单 JSON（格式同 data/music.json）
+- 🔄 手动更新歌单，新数据整体覆盖；Cookie 失效时重新编辑 `config/cookies.txt` 再更新
 - 📱 响应式布局，适配手机端
 - 🔒 数据全部保存在本地，无云端依赖
 
@@ -83,7 +82,6 @@ python app.py
 |---|---|---|
 | GET | `/api/music` | 返回 `data/music.json` 里的歌单（不请求抖音） |
 | POST | `/api/refresh` | 读取 `config/cookies.txt` 拉取收藏，整体覆盖；文件不存在则提示并停止 |
-| POST | `/api/import` | 导入歌单 JSON（格式同 `data/music.json`），覆盖本地数据 |
 
 ## 注意事项
 

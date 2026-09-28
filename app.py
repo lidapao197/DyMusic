@@ -4,7 +4,6 @@
 - 托管 public/ 静态页面
 - GET  /api/music   返回 data/music.json 里的歌单（不请求抖音）
 - POST /api/refresh 读取 config/cookies.txt（需手动创建）拉取收藏，整体覆盖
-- POST /api/import   导入歌单 JSON（格式同 data/music.json），覆盖本地数据
 """
 import json
 import logging
@@ -186,30 +185,6 @@ def _parse_cookie(text: str):
             k, v = part.split('=', 1)
             d[k.strip()] = v.strip()
     return d or None
-
-
-@app.route('/api/import', methods=['POST'])
-def api_import():
-    """导入歌单 JSON（单个对象或数组，格式同 data/music.json），覆盖本地数据"""
-    global _playlist
-    body = request.get_json(silent=True)
-    item = body if isinstance(body, dict) and isinstance(body.get('data'), list) else None
-    if item is None and isinstance(body, list):
-        items = [u for u in body if isinstance(u, dict) and isinstance(u.get('data'), list)]
-        if items:
-            item = max(items, key=lambda u: u.get('ts') or 0)  # 多个时取最近更新的
-    if not item:
-        return jsonify({'code': -1, 'msg': '没有识别到有效歌单（需包含 data 字段）'}), 400
-    try:
-        ts = float(item.get('ts') or time.time())
-    except (TypeError, ValueError):
-        ts = time.time()
-    uid = str(item.get('uid') or '')
-    _playlist = {'uid': uid, 'nickname': str(item.get('nickname') or uid or '导入歌单'),
-                 'ts': ts, 'data': item['data']}
-    _save_cache()
-    return jsonify({'code': 0, 'count': 1, 'uid': uid,
-                    'nicknames': [_playlist['nickname']]})
 
 
 @app.after_request
